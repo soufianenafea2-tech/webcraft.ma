@@ -5,31 +5,21 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 🔒 Khtar l-mot de passe dyal l-Admin
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'WebCraft2026';
+
 
 // ─── CONNECT TO MONGODB ───────────────────────────────
 // (Hada l-lien li ghadi t-jib mn MongoDB Atlas)
-const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://soufianenafea2_db_user:<db_password>@cluster0.72rctt6.mongodb.net/?appName=Cluster0";
+// Blast dak l-lien t-twil, khtar ghir hadchi bach s-site y-khdem ghir b les variables dyal Render
+const MONGO_URI = process.env.MONGO_URI;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'WebCraft2026';
+
+if (!MONGO_URI) {
+  console.error("❌ Erreur: MONGO_URI n'est pas configuré dans Render!");
+}
 
 mongoose.connect(MONGO_URI)
   .then(() => console.log('✅ Connecté à MongoDB'))
-  .catch(err => console.error('❌ Erreur MongoDB:', err));
-
-// Schema dyal l-demandes
-const RequestSchema = new mongoose.Schema({
-  name: String,
-  phone: String,
-  email: String,
-  siteType: String,
-  budget: String,
-  features: [String],
-  description: String,
-  status: { type: String, default: 'nouveau' },
-  createdAt: { type: Date, default: Date.now }
-});
-
-const Request = mongoose.model('Request', RequestSchema);
+  .catch(err => console.error('❌ Erreur de connexion:', err));
 
 // ─── MIDDLEWARE ────────────────────────────────────────
 app.use(express.json());
