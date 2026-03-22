@@ -6,7 +6,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // 🔒 Khtar l-mot de passe dyal l-Admin
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'FI5ZkaMhBHVgW0KO';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'WebCraft2026';
 
 // ─── CONNECT TO MONGODB ───────────────────────────────
 // (Hada l-lien li ghadi t-jib mn MongoDB Atlas)
