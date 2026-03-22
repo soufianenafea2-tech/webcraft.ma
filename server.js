@@ -1,130 +1,73 @@
 const express = require('express');
-const fs = require('fs');
+const mongoose = require('mongoose');
 const path = require('path');
-const { randomUUID } = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DB_FILE = path.join(__dirname, 'requests.json');
 
-// 🔒 MOT DE PASSE ADMIN HNA (Tqder tbdlo)
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123'; 
+// 🔒 Khtar l-mot de passe dyal l-Admin
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+
+// ─── CONNECT TO MONGODB ───────────────────────────────
+// (Hada l-lien li ghadi t-jib mn MongoDB Atlas)
+const MONGO_URI = process.env.MONGO_URI || "L-LIEN-DYALEK-HNA";
+
+mongoose.connect(MONGO_URI)
+  .then(() => console.log('✅ Connecté à MongoDB'))
+  .catch(err => console.error('❌ Erreur MongoDB:', err));
+
+// Schema dyal l-demandes
+const RequestSchema = new mongoose.Schema({
+  name: String,
+  phone: String,
+  email: String,
+  siteType: String,
+  budget: String,
+  features: [String],
+  description: String,
+  status: { type: String, default: 'nouveau' },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const Request = mongoose.model('Request', RequestSchema);
 
 // ─── MIDDLEWARE ────────────────────────────────────────
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// ─── HELPERS ──────────────────────────────────────────
-function readDB() {
-  if (!fs.existsSync(DB_FILE)) return [];
-  const raw = fs.readFileSync(DB_FILE, 'utf-8');
-  try { return JSON.parse(raw); } catch { return []; }
-}
-
-function writeDB(data) {
-  fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf-8');
-}
-
-// ─── SECURITE (AUTH MIDDLEWARE) ───────────────────────
 function requireAuth(req, res, next) {
-  const authHeader = req.headers.authorization;
-  if (authHeader === `Bearer ${ADMIN_PASSWORD}`) {
-    next();
-  } else {
-    res.status(401).json({ error: 'Non autorisé' });
-  }
+  if (req.headers.authorization === `Bearer ${ADMIN_PASSWORD}`) return next();
+  res.status(401).json({ error: 'Non autorisé' });
 }
 
 // ─── ROUTES ───────────────────────────────────────────
 
-// POST /api/login — Vérifier le mot de passe
 app.post('/api/login', (req, res) => {
-  if (req.body.password === ADMIN_PASSWORD) {
-    res.json({ success: true, token: ADMIN_PASSWORD });
-  } else {
-    res.status(401).json({ error: 'Mot de passe incorrect' });
-  }
+  if (req.body.password === ADMIN_PASSWORD) res.json({ success: true, token: ADMIN_PASSWORD });
+  else res.status(401).json({ error: 'Incorrect' });
 });
 
-// GET /api/requests — Récupérer toutes les demandes (Protegée par requireAuth)
-app.get('/api/requests', requireAuth, (req, res) => {
-  const requests = readDB();
-  requests.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  res.json(requests);
+app.get('/api/requests', requireAuth, async (req, res) => {
+  const data = await Request.find().sort({ createdAt: -1 });
+  res.json(data);
 });
 
-// POST /api/requests — Soumettre une nouvelle demande (Client - Publique)
-app.post('/api/requests', (req, res) => {
-  const { name, phone, email, siteType, budget, features, description } = req.body;
-
-  if (!name || !phone || !email || !siteType) {
-    return res.status(400).json({ error: 'Champs obligatoires manquants.' });
-  }
-
-  const newRequest = {
-    id: randomUUID(),
-    name: name.trim(),
-    phone: phone.trim(),
-    email: email.trim().toLowerCase(),
-    siteType,
-    budget: budget || '',
-    features: Array.isArray(features) ? features : [],
-    description: (description || '').trim(),
-    status: 'nouveau',
-    createdAt: new Date().toISOString(),
-  };
-
-  const requests = readDB();
-  requests.push(newRequest);
-  writeDB(requests);
-
-  console.log(`[${new Date().toLocaleString('fr-MA')}] Nouvelle demande: ${name} — ${siteType}`);
-  res.status(201).json({ success: true, id: newRequest.id });
+app.post('/api/requests', async (req, res) => {
+  try {
+    const newReq = new Request(req.body);
+    await newReq.save();
+    res.status(201).json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// PATCH /api/requests/:id — Mettre à jour le statut (Protegée)
-app.patch('/api/requests/:id', requireAuth, (req, res) => {
-  const { id } = req.params;
-  const { status } = req.body;
-  const validStatuses = ['nouveau', 'en_cours', 'termine', 'annule'];
-
-  if (!validStatuses.includes(status)) {
-    return res.status(400).json({ error: 'Statut invalide.' });
-  }
-
-  const requests = readDB();
-  const index = requests.findIndex(r => r.id === id);
-
-  if (index === -1) return res.status(404).json({ error: 'Demande introuvable.' });
-
-  requests[index].status = status;
-  requests[index].updatedAt = new Date().toISOString();
-  writeDB(requests);
-
-  console.log(`[${new Date().toLocaleString('fr-MA')}] Statut mis à jour: ${id} → ${status}`);
+app.patch('/api/requests/:id', requireAuth, async (req, res) => {
+  await Request.findByIdAndUpdate(req.params.id, { status: req.body.status });
   res.json({ success: true });
 });
 
-// DELETE /api/requests/:id — Supprimer une demande (Protegée)
-app.delete('/api/requests/:id', requireAuth, (req, res) => {
-  const { id } = req.params;
-  let requests = readDB();
-  const before = requests.length;
-  requests = requests.filter(r => r.id !== id);
-
-  if (requests.length === before) return res.status(404).json({ error: 'Demande introuvable.' });
-
-  writeDB(requests);
-  console.log(`[${new Date().toLocaleString('fr-MA')}] Demande supprimée: ${id}`);
+app.delete('/api/requests/:id', requireAuth, async (req, res) => {
+  await Request.findByIdAndDelete(req.params.id);
   res.json({ success: true });
 });
 
-// ─── START ────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log('\n╔══════════════════════════════════╗');
-  console.log('║     WebCraft MA — Serveur        ║');
-  console.log('╠══════════════════════════════════╣');
-  console.log(`║  ✅  http://localhost:${PORT}        ║`);
-  console.log(`║  🔒  http://localhost:${PORT}/admin.html ║`);
-  console.log('╚══════════════════════════════════╝\n');
-});
+app.listen(PORT, () => console.log(`🚀 Port: ${PORT}`));
