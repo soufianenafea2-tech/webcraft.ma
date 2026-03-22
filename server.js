@@ -10,7 +10,7 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 
 // ─── CONNECT TO MONGODB ───────────────────────────────
 // (Hada l-lien li ghadi t-jib mn MongoDB Atlas)
-const MONGO_URI = process.env.MONGO_URI || "L-LIEN-DYALEK-HNA";
+const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://soufianenafea2_db_user:<db_password>@cluster0.72rctt6.mongodb.net/?appName=Cluster0";
 
 mongoose.connect(MONGO_URI)
   .then(() => console.log('✅ Connecté à MongoDB'))
